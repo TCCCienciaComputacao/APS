@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medidor de Nível de Ruído</title>
+  <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #measurement-container {
+            background-color: #333333;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        p {
+            color: #CCCCCC;
+        }
+
+        #noise-level {
+            font-size: 24px;
+            margin-top: 20px;
+            color: #FFFFFF;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: #FFFFFF;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #start-btn:disabled,
+        #stop-btn:disabled {
+            background-color: #888888;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<div id="measurement-container">
+    <h1>Medidor de Nível de Ruído</h1>
+    <p>Este aplicativo mede o nível de ruído ambiental.</p>
+
+    <button id="start-btn">Iniciar Medição</button>
+    <button id="stop-btn" disabled>Parar Medição</button>
+
+    <p id="noise-level">Nível de Ruído: 0 dB</p>
+</div>
+<body>
+
+<script>
+    let audioContext = null;
+    let analyser = null;
+    let bufferLength = 0;
+    let dataArray = null;
+    let currentNoiseLevel = 0.0;
+
+    document.getElementById('start-btn').addEventListener('click', startMeasurement);
+    document.getElementById('stop-btn').addEventListener('click', stopMeasurement);
+
+    function startMeasurement() {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then((stream) => {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 256; // Tamanho da FFT (Fast Fourier Transform)
+                bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+
+                analyser.getByteFrequencyData(dataArray);
+
+                document.getElementById('start-btn').disabled = true;
+                document.getElementById('stop-btn').disabled = false;
+
+                // Iniciar a medição
+                updateNoiseLevel();
+            })
+            .catch((error) => {
+                console.error('Erro ao acessar o microfone:', error);
+            });
+    }
+
+    function stopMeasurement() {
+        if (audioContext) {
+            audioContext.close().then(() => {
+                audioContext = null;
+                analyser = null;
+                dataArray = null;
+                bufferLength = 0;
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('stop-btn').disabled = true;
+                document.getElementById('noise-level').innerText = 'Nível de Ruído: 0 dB';
+            });
+        }
+    }
+
+ function updateNoiseLevel() {
+    if (audioContext) {
+        analyser.getByteFrequencyData(dataArray);
+        let average = dataArray.reduce((acc, val) => acc + val, 0) / bufferLength;
+
+        // Ajuste para garantir que o valor seja sempre não negativo
+        currentNoiseLevel = Math.max(0, 20 * Math.log10(1 + average / 128.0)); // Converte para dB
+        document.getElementById('noise-level').innerText = `Nível de Ruído: ${currentNoiseLevel.toFixed(2)} dB`;
+
+        // Atualizar o status em outro HTML
+        updateStatus(currentNoiseLevel);
+
+        requestAnimationFrame(() => updateNoiseLevel());
+
+        // Corrigir o bloco de código para enviar a solicitação POST
+        fetch('http://127.0.0.1:5000/update_noise_level', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 'noiseLevel': currentNoiseLevel }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                console.error('Erro ao atualizar o nível de ruído no servidor principal:', response.statusText);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao enviar a solicitação:', error);
+        });
+    }
+}
+
+    function updateStatus() {
+        let status = getStatusText(currentNoiseLevel);
+
+        // Atualizar o status no servidor principal
+        fetch('http://127.0.0.1:5000/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `noiseStatus=${encodeURIComponent(status)}`,
+        }).catch(error => {
+            console.error('Erro ao enviar status para o servidor:', error);
+        });
+    }
+
+    function getStatusText(noiseLevel) {
+        if (noiseLevel > 5) {
+            return 'Muito Barulho';
+        } else if (noiseLevel > 2) {
+            return 'Barulho';
+        } else if (noiseLevel > 1) {
+            return 'Adequado';
+        } else if (noiseLevel > 0.5) {
+            return 'Baixo';
+        } else {
+            return 'Sem Ruído';
+        }
+    }
+
+    // Atualizar o status a cada segundo
+    setInterval(() => {
+        updateStatus();
+    }, 1000);
+
+</script>
+
+</body>
+</html>

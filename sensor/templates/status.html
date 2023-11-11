@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status do Nível de Ruído</title>
+  <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #status-container {
+            background-color: #333333;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        p {
+            color: #CCCCCC;
+        }
+
+        #noise-status {
+            font-size: 24px;
+            margin-top: 20px;
+            color: #FFFFFF;
+        }
+    </style>
+</head>
+<body>
+
+<div id="status-container">
+    <h1>Status do Nível de Ruído</h1>
+    <p id="noise-status">Status: Aguardando medição...</p>
+</div>
+<body>
+
+
+<script>
+    function updateStatus() {
+        fetch('http://192.168.0.110:8080/get_status')
+            .then(response => response.json())
+            .then(data => {
+                let status = data.status || 'Aguardando medição...';
+                document.getElementById('noise-status').innerText = `Status: ${status}`;
+            })
+            .catch(error => {
+                console.error('Erro ao obter status:', error);
+                document.getElementById('noise-status').innerText = 'Erro ao obter status';
+            });
+    }
+
+    // Atualizar o status a cada segundo
+    setInterval(() => {
+        updateStatus();
+    }, 1000);
+
+</script>
+
+</body>
+</html>
